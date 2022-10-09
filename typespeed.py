@@ -112,7 +112,7 @@ if __name__ == '__main__':
             if key in [Key.space, Key.tab]:
                 State.TEXT += ' '
             elif key == Key.backspace:
-                State.TEXT = State.TEXT[0:-1]
+                State.TEXT = State.TEXT[:-1]
 
     with Listener(on_press=on_press, on_release=on_release) as listener:
         listener.join()
