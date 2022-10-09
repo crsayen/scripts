@@ -2,74 +2,117 @@
 from pynput.keyboard import Key, Listener
 from time import time
 import sys
-
-class Color:
-    PURPLE = '\033[95m'
-    YELLOW = '\033[93m'
-    BOLD = '\033[1m'
-    ITALIC = '\033[3m'
-    DIM = '\033[22m'
-    END = '\033[0m'
-
-text = ''
-start = 0
-end = 0
-
-def on_press(key):
-    global text
-    global start
-
-    if start == 0: start = time()
-
-    try: 
-        text += key.char
-    except:
-        if key in  [Key.space]:
-            text += ' '
+import re
 
 
-def on_release(key):
-    global end
-    if key != Key.enter:
-        end = time()
-    else:
-        print()
+def purple(s): return f"\033[95m{s}\033[0m"
 
-        
-        elr_field_size = 8
-        el = end - start
-        el_integral_text_size = len(str(round(el)))
-        elr = round(el, max(0, elr_field_size - (el_integral_text_size + 1)))
-        elr_text_len = len(str(elr))
-        elr_fill = ' ' * (elr_field_size - elr_text_len)
-                 
-        nwords = len(text.strip().split(' '))
-        nwords_text_len = len(str(nwords))
-        nwords_field_size = 8
-        nwords_fill = ' ' * (nwords_field_size - nwords_text_len)
-        
-        print(f'{Color.YELLOW}┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┓{Color.END}')
-        print(f'{Color.YELLOW}┃{Color.END} elapsed time    {Color.YELLOW}┃{Color.END} {elr} seconds {elr_fill}{Color.YELLOW}┃{Color.END}')
-        print(f'{Color.YELLOW}┣━━━━━━━━━━━━━━━━━╋━━━━━━━━━━━━━━━━━━┫{Color.END}')        
-        print(f'{Color.YELLOW}┃{Color.END} number of words {Color.YELLOW}┃{Color.END} {nwords}{nwords_fill}         {Color.YELLOW}┃{Color.END}')
-        print(f'{Color.YELLOW}┗━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━┛{Color.END}')
 
-        nmins = elr / 60
-        print(f'\n{Color.BOLD}{Color.PURPLE}{round(nwords / nmins)}{Color.END} WPM{Color.END}')
-        
-        sys.stdin.readline()
+def green(s): return f'\033[92m{s}\033[0m'
 
-        return False
-    
-print("\nthis program calculates how quickly you type arbitrary text.\n")
-print(f"{Color.BOLD}⏵ the timer starts when you start typing 🖐️{Color.END}")    
-print(f"{Color.BOLD}⏵ the test ends when you press the enter key {Color.PURPLE}↩{Color.END}")    
-print(f"{Color.BOLD}⏵ the time that the last key before the enter key is pressed is the ending time{Color.END}")
-print(f"  {Color.YELLOW}in other words, waiting a while before pressing enter will not affect your score{Color.END}")
-print("\nstart typing to begin...\n")
-    
-with Listener(
-    on_press=on_press,
-    on_release=on_release) as listener:
-    listener.join()
-    
+
+def bold(s): return f'\033[1m{s}\033[0m'
+
+
+print(f"""
+{purple("this program calculates how quickly you type arbitrary text.")}
+
+⏵ the timer starts when you start typing 🖐️
+⏵ the test ends when you press the enter key {green("↩")}
+⏵ the timer ends when the key before enter is pressed
+
+{bold(green("start typing to begin..."))}
+    """)
+
+
+def format_elapsed_time(seconds, field_width):
+    integral_width = len(str(round(seconds)))
+    is_room_for_decimal = field_width > integral_width + len(".99 s ")
+    rounded = round(seconds, 2 if is_room_for_decimal else 0)
+    return pad_center_justified(f"{rounded} s", field_width)
+
+
+def format_number_of_words(words, field_width):
+    return pad_center_justified(words, field_width)
+
+
+def format_words_per_minute(seconds, words, field_width):
+    wpm = round(words / (seconds / 60))
+    return pad_center_justified(f"{wpm} WPM", field_width)
+
+
+def pad_center_justified(content, field_width):
+    content_width = len(str(content))
+    needs_offset = field_width % 2 != content_width % 2
+    pad = (field_width - content_width) // 2
+    return f"{' ' * (pad + needs_offset)}{content}{' ' * pad}"
+
+
+def on_match(pattern, text, fn):
+    return fn(text) if re.fullmatch(pattern, text) else text
+
+
+def colorize(s):
+    chunks = s.split(' ')
+    if re.fullmatch(r'[a-zA-Z0-9 \\.\n]+', s):
+        return ' '.join([on_match(r'[\d\.]+', t, purple) for t in chunks])
+    return ' '.join([on_match(r'[a-zA-Z ]+', t, green) for t in chunks])
+
+
+template = """
+╭─────────────────┬────────────╮
+│ elapsed time    │_{}_________│
+├─────────────────┼────────────┤
+│ number of words │_{}_________│
+╰─────────────────┴────────────╯
+╭──────────────────────────────╮
+│                              │
+│______________{}______________│
+│                              │
+╰──────────────────────────────╯
+"""
+
+
+def build_table(start, end, text):
+    number_of_words = len(text.strip().split(' '))
+    seconds_elapsed = end - start
+    populated_template = template.format(
+        format_elapsed_time(seconds_elapsed, 12),
+        format_number_of_words(number_of_words, 12),
+        format_words_per_minute(seconds_elapsed, number_of_words, 30)
+    )
+
+    return "".join([colorize(s) for s in populated_template.split('_')])
+
+
+if __name__ == '__main__':
+    class State:
+        TEXT = ''
+        START_TIME = 0
+        END_TIME = 0
+
+    def on_release(key):
+        if key != Key.enter:
+            State.END_TIME = time()
+        else:
+            print(build_table(
+                State.START_TIME,
+                State.END_TIME,
+                State.TEXT
+            ))
+            sys.stdin.readline()
+            return False
+
+    def on_press(key):
+        if State.START_TIME == 0:
+            State.START_TIME = time()
+        try:
+            State.TEXT += key.char
+        except Exception:
+            if key in [Key.space, Key.tab]:
+                State.TEXT += ' '
+            elif key == Key.backspace:
+                State.TEXT = State.TEXT[0:-1]
+
+    with Listener(on_press=on_press, on_release=on_release) as listener:
+        listener.join()
