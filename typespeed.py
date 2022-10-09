@@ -25,6 +25,13 @@ print(f"""
     """)
 
 
+def pad_center_justified(content, field_width):
+    content_width = len(str(content))
+    needs_offset = field_width % 2 != content_width % 2
+    pad = (field_width - content_width) // 2
+    return f"{' ' * (pad + needs_offset)}{content}{' ' * pad}"
+
+
 def format_elapsed_time(seconds, field_width):
     integral_width = len(str(round(seconds)))
     is_room_for_decimal = field_width > integral_width + len(".99 s ")
@@ -39,13 +46,6 @@ def format_number_of_words(words, field_width):
 def format_words_per_minute(seconds, words, field_width):
     wpm = round(words / (seconds / 60))
     return pad_center_justified(f"{wpm} WPM", field_width)
-
-
-def pad_center_justified(content, field_width):
-    content_width = len(str(content))
-    needs_offset = field_width % 2 != content_width % 2
-    pad = (field_width - content_width) // 2
-    return f"{' ' * (pad + needs_offset)}{content}{' ' * pad}"
 
 
 def on_match(pattern, text, fn):
